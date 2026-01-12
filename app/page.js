@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, X, Tag, Filter, Upload, FileText, Video } from 'lucide-react';
+import { Search, Plus, X, Tag, Filter, Upload, FileText, Video, Lock } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
 // Initialize Supabase client
@@ -10,7 +10,13 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 );
 
+// Password (you can change this)
+const CORRECT_PASSWORD = process.env.NEXT_PUBLIC_APP_PASSWORD;
+
 export default function PromptBank() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [password, setPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
   const [prompts, setPrompts] = useState([]);
   const [tools, setTools] = useState([]);
   const [showForm, setShowForm] = useState(false);
@@ -30,11 +36,36 @@ export default function PromptBank() {
     tags: ''
   });
 
-  // Load prompts and tools from Supabase
+  // Check if already authenticated
   useEffect(() => {
-    loadData();
+    const auth = sessionStorage.getItem('promptBankAuth');
+    if (auth === 'true') {
+      setIsAuthenticated(true);
+      loadData();
+    } else {
+      setLoading(false);
+    }
   }, []);
 
+  const handleLogin = (e) => {
+    e.preventDefault();
+    if (password === CORRECT_PASSWORD) {
+      sessionStorage.setItem('promptBankAuth', 'true');
+      setIsAuthenticated(true);
+      setPasswordError('');
+      loadData();
+    } else {
+      setPasswordError('Incorrect password');
+    }
+  };
+
+  const handleLogout = () => {
+    sessionStorage.removeItem('promptBankAuth');
+    setIsAuthenticated(false);
+    setPassword('');
+  };
+
+  // Load prompts and tools from Supabase
   const loadData = async () => {
     setLoading(true);
     
@@ -214,6 +245,46 @@ export default function PromptBank() {
     return matchesSearch && matchesTool;
   });
 
+  // Login Screen
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-black text-white flex items-center justify-center p-4">
+        <div className="bg-zinc-900 border border-white/10 max-w-md w-full p-8">
+          <div className="text-center mb-8">
+            <Lock className="mx-auto mb-4 text-white/60" size={48} />
+            <h1 className="text-3xl font-light mb-2">Prompt Bank</h1>
+            <p className="text-white/60 font-light">Enter password to access</p>
+          </div>
+          
+          <div onSubmit={handleLogin}>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                setPasswordError('');
+              }}
+              onKeyPress={(e) => e.key === 'Enter' && handleLogin(e)}
+              placeholder="Password"
+              className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-none text-white placeholder-white/40 focus:outline-none focus:border-white/30 transition mb-4"
+            />
+            
+            {passwordError && (
+              <p className="text-red-400 text-sm mb-4">{passwordError}</p>
+            )}
+            
+            <button
+              onClick={handleLogin}
+              className="w-full px-6 py-3 bg-white text-black rounded-none hover:bg-white/90 transition font-medium"
+            >
+              Login
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
@@ -227,8 +298,18 @@ export default function PromptBank() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-12 border-b border-white/10 pb-8">
-          <h1 className="text-5xl md:text-6xl font-light tracking-tight mb-3">Prompt Bank</h1>
-          <p className="text-white/60 text-lg font-light">Curated collection of high-performance prompts</p>
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-5xl md:text-6xl font-light tracking-tight mb-3">Prompt Bank</h1>
+              <p className="text-white/60 text-lg font-light">Curated collection of high-performance prompts</p>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="px-4 py-2 text-white/60 hover:text-white transition text-sm"
+            >
+              Logout
+            </button>
+          </div>
         </div>
 
         {/* Controls */}
