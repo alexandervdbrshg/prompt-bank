@@ -242,8 +242,12 @@ export default function PromptBank() {
         {viewingMedia && (
           <div className="fixed inset-0 bg-black/95 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={() => setViewingMedia(null)}>
             <button onClick={() => setViewingMedia(null)} className="absolute top-4 right-4 text-white/60 hover:text-white transition z-10"><X size={32} /></button>
-            <div className="max-w-6xl max-h-[90vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
-              {viewingMedia.includes('.mp4') || viewingMedia.includes('.webm') || viewingMedia.includes('.mov') ? (<video src={viewingMedia} controls autoPlay className="w-full h-auto" />) : (<img src={viewingMedia} alt="Full size" className="w-full h-auto" />)}
+            <div className="w-[90vw] h-[90vh] flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+              {viewingMedia.includes('.mp4') || viewingMedia.includes('.webm') || viewingMedia.includes('.mov') ? (
+                <video src={viewingMedia} controls autoPlay className="max-w-full max-h-full object-contain" />
+              ) : (
+                <img src={viewingMedia} alt="Full size" className="max-w-full max-h-full object-contain" />
+              )}
             </div>
           </div>
         )}
