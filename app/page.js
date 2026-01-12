@@ -20,6 +20,7 @@ export default function PromptBank() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterTool, setFilterTool] = useState('all');
   const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
   const [formData, setFormData] = useState({
     prompt: '',
     tool: '',
@@ -62,27 +63,9 @@ export default function PromptBank() {
 
   const handleFileUpload = (e) => {
     const files = Array.from(e.target.files);
-    const filePromises = files.map(file => {
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          resolve({
-            name: file.name,
-            type: file.type,
-            data: e.target.result,
-            isImage: file.type.startsWith('image/'),
-            isVideo: file.type.startsWith('video/')
-          });
-        };
-        reader.readAsDataURL(file);
-      });
-    });
-
-    Promise.all(filePromises).then(newFiles => {
-      setFormData({
-        ...formData,
-        resultFiles: [...formData.resultFiles, ...newFiles]
-      });
+    setFormData({
+      ...formData,
+      resultFiles: [...formData.resultFiles, ...files]
     });
   };
 
@@ -91,6 +74,41 @@ export default function PromptBank() {
       ...formData,
       resultFiles: formData.resultFiles.filter((_, i) => i !== index)
     });
+  };
+
+  const uploadFilesToStorage = async (files) => {
+    const uploadedUrls = [];
+    
+    for (const file of files) {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { data, error } = await supabase.storage
+        .from('prompt-results')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (error) {
+        console.error('Upload error:', error);
+        throw error;
+      }
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('prompt-results')
+        .getPublicUrl(filePath);
+
+      uploadedUrls.push({
+        name: file.name,
+        url: publicUrl,
+        type: file.type
+      });
+    }
+
+    return uploadedUrls;
   };
 
   const handleSubmit = async (e) => {
@@ -102,26 +120,39 @@ export default function PromptBank() {
       return;
     }
     
-    // For now, store files as base64 in the database
-    // In production, you'd upload to Supabase Storage and store URLs
-    const { data, error } = await supabase
-      .from('prompts')
-      .insert([{
-        prompt: formData.prompt,
-        tool: formData.tool,
-        result_text: formData.resultText,
-        result_files: formData.resultFiles,
-        notes: formData.notes,
-        tags: formData.tags.split(',').map(t => t.trim()).filter(t => t)
-      }])
-      .select();
+    setUploading(true);
     
-    if (!error && data) {
-      setPrompts([data[0], ...prompts]);
-      setFormData({ prompt: '', tool: '', resultText: '', resultFiles: [], notes: '', tags: '' });
-      setShowForm(false);
-    } else {
-      alert('Error saving prompt: ' + error.message);
+    try {
+      // Upload files to storage if any
+      let fileUrls = [];
+      if (formData.resultFiles.length > 0) {
+        fileUrls = await uploadFilesToStorage(formData.resultFiles);
+      }
+
+      // Save prompt to database
+      const { data, error } = await supabase
+        .from('prompts')
+        .insert([{
+          prompt: formData.prompt,
+          tool: formData.tool,
+          result_text: formData.resultText,
+          result_file_urls: fileUrls.map(f => f.url),
+          notes: formData.notes,
+          tags: formData.tags.split(',').map(t => t.trim()).filter(t => t)
+        }])
+        .select();
+      
+      if (!error && data) {
+        setPrompts([data[0], ...prompts]);
+        setFormData({ prompt: '', tool: '', resultText: '', resultFiles: [], notes: '', tags: '' });
+        setShowForm(false);
+      } else {
+        alert('Error saving prompt: ' + error.message);
+      }
+    } catch (error) {
+      alert('Error uploading files: ' + error.message);
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -433,8 +464,8 @@ export default function PromptBank() {
                       <div className="mt-4 space-y-2">
                         {formData.resultFiles.map((file, index) => (
                           <div key={index} className="flex items-center gap-3 p-3 bg-white/5 border border-white/10">
-                            {file.isImage && <FileText size={18} className="text-white/60" />}
-                            {file.isVideo && <Video size={18} className="text-white/60" />}
+                            {file.type.startsWith('image/') && <FileText size={18} className="text-white/60" />}
+                            {file.type.startsWith('video/') && <Video size={18} className="text-white/60" />}
                             <span className="text-sm text-white/80 flex-1 font-light">{file.name}</span>
                             <button
                               onClick={() => removeFile(index)}
@@ -464,13 +495,15 @@ export default function PromptBank() {
                   <div className="flex gap-3 pt-6">
                     <button
                       onClick={handleSubmit}
-                      className="flex-1 px-6 py-3 bg-white text-black rounded-none hover:bg-white/90 transition font-medium"
+                      disabled={uploading}
+                      className="flex-1 px-6 py-3 bg-white text-black rounded-none hover:bg-white/90 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Save Prompt
+                      {uploading ? 'Uploading...' : 'Save Prompt'}
                     </button>
                     <button
                       onClick={() => setShowForm(false)}
-                      className="px-6 py-3 border border-white/10 rounded-none hover:bg-white/5 transition font-light"
+                      disabled={uploading}
+                      className="px-6 py-3 border border-white/10 rounded-none hover:bg-white/5 transition font-light disabled:opacity-50"
                     >
                       Cancel
                     </button>
@@ -525,26 +558,28 @@ export default function PromptBank() {
                     </p>
                   )}
                   
-                  {prompt.result_files && prompt.result_files.length > 0 && (
+                  {prompt.result_file_urls && prompt.result_file_urls.length > 0 && (
                     <div className="space-y-2">
-                      {prompt.result_files.map((file, i) => (
-                        <div key={i}>
-                          {file.isImage && (
-                            <img 
-                              src={file.data} 
-                              alt={file.name}
-                              className="w-full border border-white/10"
-                            />
-                          )}
-                          {file.isVideo && (
-                            <video 
-                              src={file.data} 
-                              controls
-                              className="w-full border border-white/10"
-                            />
-                          )}
-                        </div>
-                      ))}
+                      {prompt.result_file_urls.map((url, i) => {
+                        const isVideo = url.includes('.mp4') || url.includes('.webm') || url.includes('.mov');
+                        return (
+                          <div key={i}>
+                            {isVideo ? (
+                              <video 
+                                src={url} 
+                                controls
+                                className="w-full border border-white/10"
+                              />
+                            ) : (
+                              <img 
+                                src={url} 
+                                alt="Result"
+                                className="w-full border border-white/10"
+                              />
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
