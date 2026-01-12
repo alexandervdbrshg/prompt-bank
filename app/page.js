@@ -10,6 +10,7 @@ const supabase = createClient(
 );
 
 const CORRECT_PASSWORD = process.env.NEXT_PUBLIC_APP_PASSWORD;
+const PREDEFINED_TAGS = ['Photo', 'Video', 'Text', 'Other'];
 
 export default function PromptBank() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -23,6 +24,7 @@ export default function PromptBank() {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterTool, setFilterTool] = useState('all');
+  const [filterTag, setFilterTag] = useState('all');
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [viewingMedia, setViewingMedia] = useState(null);
@@ -127,7 +129,7 @@ export default function PromptBank() {
         result_text: formData.resultText,
         result_file_urls: fileUrls.map(f => f.url),
         notes: formData.notes,
-        tags: formData.tags.split(',').map(t => t.trim()).filter(t => t)
+        tags: formData.tags ? [formData.tags] : []
       }]).select();
       if (!error && data) {
         setPrompts([data[0], ...prompts]);
@@ -178,7 +180,8 @@ export default function PromptBank() {
   const filteredPrompts = prompts.filter(p => {
     const matchesSearch = !searchTerm || p.prompt.toLowerCase().includes(searchTerm.toLowerCase()) || p.tool.toLowerCase().includes(searchTerm.toLowerCase()) || (p.result_text && p.result_text.toLowerCase().includes(searchTerm.toLowerCase())) || (p.notes && p.notes.toLowerCase().includes(searchTerm.toLowerCase())) || (p.tags && p.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase())));
     const matchesTool = filterTool === 'all' || p.tool === filterTool;
-    return matchesSearch && matchesTool;
+    const matchesTag = filterTag === 'all' || (p.tags && p.tags.includes(filterTag));
+    return matchesSearch && matchesTool && matchesTag;
   });
 
   if (!isAuthenticated) {
@@ -232,6 +235,13 @@ export default function PromptBank() {
               <select value={filterTool} onChange={(e) => setFilterTool(e.target.value)} className="w-full pl-12 pr-8 py-3 bg-white/5 border border-white/10 rounded-none text-white focus:outline-none focus:border-white/30 appearance-none transition">
                 <option value="all">All Tools</option>
                 {tools.map(tool => (<option key={tool} value={tool}>{tool}</option>))}
+              </select>
+            </div>
+            <div className="relative flex-1 sm:flex-initial">
+              <Tag className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40" size={20} />
+              <select value={filterTag} onChange={(e) => setFilterTag(e.target.value)} className="w-full pl-12 pr-8 py-3 bg-white/5 border border-white/10 rounded-none text-white focus:outline-none focus:border-white/30 appearance-none transition">
+                <option value="all">All Tags</option>
+                {PREDEFINED_TAGS.map(tag => (<option key={tag} value={tag}>{tag}</option>))}
               </select>
             </div>
             <button onClick={() => setShowToolManager(true)} className="w-full sm:w-auto px-4 py-3 border border-white/10 rounded-none hover:bg-white/5 transition flex items-center justify-center gap-2 whitespace-nowrap">Manage Tools</button>
@@ -317,7 +327,10 @@ export default function PromptBank() {
                     </div>
                     <div>
                       <label className="block text-sm font-light text-white/60 mb-2 uppercase tracking-wide">Tags</label>
-                      <input type="text" value={formData.tags} onChange={(e) => setFormData({...formData, tags: e.target.value})} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-none text-white placeholder-white/30 focus:outline-none focus:border-white/30 transition" placeholder="comma, separated, tags" />
+                      <select value={formData.tags} onChange={(e) => setFormData({...formData, tags: e.target.value})} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-none text-white focus:outline-none focus:border-white/30 transition appearance-none">
+                        <option value="">Select a tag...</option>
+                        {PREDEFINED_TAGS.map(tag => (<option key={tag} value={tag}>{tag}</option>))}
+                      </select>
                     </div>
                   </div>
                   <div>
