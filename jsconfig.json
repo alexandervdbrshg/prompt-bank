@@ -6,38 +6,3 @@
     }
   }
 }
-```
-
-4. Commit: "Add jsconfig for path resolution"
-
-This tells Next.js that when you write `@/lib/auth`, it should look in the root directory for `lib/auth`.
-
----
-
-## OR Alternative: Check the exact file structure
-
-Can you verify your file structure looks exactly like this?
-```
-prompt-bank/
-├── lib/
-│   ├── auth.js
-│   └── supabase-server.js
-├── app/
-│   ├── api/
-│   │   ├── auth/
-│   │   │   ├── login/
-│   │   │   │   └── route.js
-│   │   │   ├── logout/
-│   │   │   │   └── route.js
-│   │   │   └── verify/
-│   │   │       └── route.js
-│   │   ├── prompts/
-│   │   │   └── route.js
-│   │   └── tools/
-│   │       └── route.js
-│   ├── globals.css
-│   ├── layout.js
-│   └── page.js
-├── package.json
-├── next.config.js
-└── jsconfig.json (create this)
