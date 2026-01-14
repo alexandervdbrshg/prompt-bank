@@ -686,7 +686,8 @@ export default function PromptBank() {
                 <div className="mb-4">
                   <h3 className="text-xs font-light text-white/40 mb-2 uppercase tracking-wide">Result</h3>
                   {prompt.result_text && (
-                    <p className="text-white/80 text-sm leading-relaxed line-clamp-3 mb-)}
+                    <p className="text-white/80 text-sm leading-relaxed line-clamp-3 mb-3 font-light break-words">{prompt.result_text}</p>
+                  )}
                   {prompt.result_file_urls && prompt.result_file_urls.length > 0 && (
                     <div className="space-y-2">
                       {prompt.result_file_urls.map((url, i) => {
