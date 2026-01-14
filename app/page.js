@@ -116,13 +116,11 @@ export default function PromptBank() {
   const handleFileUpload = (e) => {
     const files = Array.from(e.target.files);
     
-    // Limit to 5 files
     if (formData.resultFiles.length + files.length > 5) {
       alert('Maximum 5 files allowed');
       return;
     }
     
-    // Check file sizes
     for (const file of files) {
       if (file.size > 10 * 1024 * 1024) {
         alert(`File "${file.name}" is too large. Maximum size: 10MB`);
@@ -686,4 +684,62 @@ export default function PromptBank() {
                 </div>
                 
                 <div className="mb-4">
-                  <h3 className="text-xs font-light text-white/40 mb
+                  <h3 className="text-xs font-light text-white/40 mb-2 uppercase tracking-wide">Result</h3>
+                  {prompt.result_text && (
+                    <p className="text-white/80 text-sm leading-relaxed line-clamp-3 mb-)}
+                  {prompt.result_file_urls && prompt.result_file_urls.length > 0 && (
+                    <div className="space-y-2">
+                      {prompt.result_file_urls.map((url, i) => {
+                        const isVideo = url.includes('.mp4') || url.includes('.webm') || url.includes('.mov');
+                        return (
+                          <div key={i} className="cursor-pointer hover:opacity-80 transition" onClick={() => setViewingMedia(url)}>
+                            {isVideo ? (
+                              <div className="relative h-48 bg-black border border-white/10 overflow-hidden">
+                                <video src={url} className="w-full h-full object-cover" />
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                                  <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
+                                    <div className="w-0 h-0 border-l-8 border-l-white border-y-6 border-y-transparent ml-1"></div>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="h-48 bg-black border border-white/10 overflow-hidden">
+                                <img src={url} alt="Result" className="w-full h-full object-cover" />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                
+                {prompt.notes && (
+                  <div className="mb-4">
+                    <h3 className="text-xs font-light text-white/40 mb-2 uppercase tracking-wide">Notes</h3>
+                    <p className="text-white/60 text-sm leading-relaxed line-clamp-2 font-light break-words">{prompt.notes}</p>
+                  </div>
+                )}
+                
+                {prompt.tags && prompt.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {prompt.tags.map((tag, i) => (
+                      <span key={i} className="inline-flex items-center gap-1 px-2 py-1 bg-white/5 border border-white/10 text-white/60 text-xs font-light">
+                        <Tag size={10} />
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                
+                <div className="pt-4 border-t border-white/10 mt-auto">
+                  <p className="text-xs text-white/40 font-light">{new Date(prompt.created_at).toLocaleDateString()}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
