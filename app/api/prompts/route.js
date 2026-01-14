@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { verifyAuthToken, sanitizeInput, validateFile } from '@/lib/auth';
+import { verifyAuthToken, sanitizeInput, validateFile, logSecurityEvent } from '@/lib/auth';
 import { supabaseServer } from '@/lib/supabase-server';
 import { cookies } from 'next/headers';
 
@@ -28,7 +28,7 @@ export async function GET() {
   return NextResponse.json({ prompts: data });
 }
 
-// POST new prompt
+// POST new prompt - CRITICAL FIX #4: Enhanced file validation
 export async function POST(request) {
   if (!await checkAuth()) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -37,7 +37,7 @@ export async function POST(request) {
   try {
     const formData = await request.formData();
     
-    // Sanitize text inputs
+    // Sanitize text inputs (now includes HTML encoding)
     const prompt = sanitizeInput(formData.get('prompt'), 5000);
     const tool = sanitizeInput(formData.get('tool'), 100);
     const resultText = sanitizeInput(formData.get('resultText'), 10000);
@@ -52,15 +52,29 @@ export async function POST(request) {
       );
     }
     
-    // Handle file uploads
+    // Handle file uploads with ENHANCED VALIDATION
     const files = formData.getAll('files');
     const fileUrls = [];
     
     if (files && files.length > 0) {
-      // Limit number of files
+      // Limit number of files per upload
       if (files.length > 5) {
+        logSecurityEvent('SUSPICIOUS_FILE_UPLOAD', {
+          reason: 'too_many_files',
+          count: files.length
+        });
         return NextResponse.json(
-          { error: 'Maximum 5 files allowed' },
+          { error: 'Maximum 5 files allowed per upload' },
+          { status: 400 }
+        );
+      }
+      
+      // Limit total upload size
+      const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+      const maxTotalSize = 50 * 1024 * 1024; // 50MB total
+      if (totalSize > maxTotalSize) {
+        return NextResponse.json(
+          { error: 'Total upload size exceeds 50MB limit' },
           { status: 400 }
         );
       }
@@ -68,22 +82,32 @@ export async function POST(request) {
       for (const file of files) {
         if (file.size === 0) continue;
         
-        // Validate file
-        const validation = validateFile(file, 10); // 10MB max
+        // ENHANCED FILE VALIDATION - checks signatures, extensions, content
+        const validation = await validateFile(file, 10); // 10MB max per file
+        
         if (!validation.valid) {
+          // Log suspicious upload attempts
+          logSecurityEvent('SUSPICIOUS_FILE_UPLOAD', {
+            filename: file.name,
+            type: file.type,
+            size: file.size,
+            errors: validation.errors
+          });
+          
           return NextResponse.json(
             { error: validation.errors[0] },
             { status: 400 }
           );
         }
         
-        // Upload to Supabase Storage
-        const fileExt = file.name.split('.').pop()?.toLowerCase();
+        // Use sanitized filename from validation
+        const fileExt = validation.sanitizedFilename.split('.').pop()?.toLowerCase();
         const fileName = `${crypto.randomUUID()}.${fileExt}`;
         
         const arrayBuffer = await file.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
         
+        // Upload to Supabase Storage
         const { data, error } = await supabaseServer.storage
           .from('prompt-results')
           .upload(fileName, buffer, {
@@ -94,17 +118,32 @@ export async function POST(request) {
         
         if (error) {
           console.error('Upload error:', error);
+          
+          logSecurityEvent('FILE_UPLOAD_FAILED', {
+            filename: validation.sanitizedFilename,
+            error: error.message
+          });
+          
           return NextResponse.json(
             { error: 'File upload failed' },
             { status: 500 }
           );
         }
         
+        // Get public URL
         const { data: { publicUrl } } = supabaseServer.storage
           .from('prompt-results')
           .getPublicUrl(fileName);
         
         fileUrls.push(publicUrl);
+        
+        // Log successful upload
+        logSecurityEvent('FILE_UPLOADED', {
+          filename: validation.sanitizedFilename,
+          type: file.type,
+          size: file.size,
+          storedAs: fileName
+        });
       }
     }
     
@@ -137,10 +176,21 @@ export async function POST(request) {
       );
     }
     
+    // Log successful prompt creation
+    logSecurityEvent('PROMPT_CREATED', {
+      promptId: data[0].id,
+      filesCount: fileUrls.length
+    });
+    
     return NextResponse.json({ prompt: data[0] }, { status: 201 });
     
   } catch (error) {
     console.error('Server error:', error);
+    
+    logSecurityEvent('PROMPT_CREATION_ERROR', {
+      error: error.message
+    });
+    
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -161,15 +211,23 @@ export async function DELETE(request) {
     return NextResponse.json({ error: 'ID required' }, { status: 400 });
   }
 
+  // Sanitize ID to prevent injection
+  const sanitizedId = sanitizeInput(id, 100);
+
   const { error } = await supabaseServer
     .from('prompts')
     .delete()
-    .eq('id', id);
+    .eq('id', sanitizedId);
 
   if (error) {
     console.error('Delete error:', error);
     return NextResponse.json({ error: 'Failed to delete prompt' }, { status: 500 });
   }
+
+  // Log deletion
+  logSecurityEvent('PROMPT_DELETED', {
+    promptId: sanitizedId
+  });
 
   return NextResponse.json({ success: true });
 }
