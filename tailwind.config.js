@@ -8,8 +8,8 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
-        'custom': ['CustomFont', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
-        'sans': ['CustomFont', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+        'kurdis': ['Kurdis', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+        'sans': ['Kurdis', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
       },
     },
   },
