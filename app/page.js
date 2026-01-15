@@ -383,7 +383,7 @@ export default function PromptBank() {
         </div>
 
         {viewingMedia && (
-          <div className="fixed inset-0 bg-black/95 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={() => setViewingMedia(null)}>
+          <div className="fixed inset-0 bg-black/95 backdrop-blur-sm flex items-center justify-center p-4 z-[60]" onClick={() => setViewingMedia(null)}>
             <button 
               onClick={() => setViewingMedia(null)} 
               className="absolute top-4 right-4 text-custom-white/60 hover:text-custom-white transition z-10"
