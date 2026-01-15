@@ -11,6 +11,9 @@ module.exports = {
         'kurdis': ['Kurdis', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
         'sans': ['Kurdis', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
       },
+      colors: {
+        'custom-white': '#d9d9d6',
+      },
     },
   },
   plugins: [],
