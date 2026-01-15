@@ -21,6 +21,7 @@ export default function PromptBank() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [viewingMedia, setViewingMedia] = useState(null);
+  const [viewingPrompt, setViewingPrompt] = useState(null);
   const [formData, setFormData] = useState({
     prompt: '',
     tool: '',
@@ -658,7 +659,11 @@ export default function PromptBank() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filteredPrompts.map(prompt => (
-              <div key={prompt.id} className="bg-white/5 border border-custom-white/10 p-4 md:p-6 hover:border-custom-white/20 transition group relative flex flex-col">
+              <div 
+                key={prompt.id} 
+                className="bg-white/5 border border-custom-white/10 p-4 md:p-6 hover:border-custom-white/20 transition group relative flex flex-col cursor-pointer"
+                onClick={() => setViewingPrompt(prompt)}
+              >
                 <button 
                   onClick={(e) => { 
                     e.preventDefault(); 
@@ -693,7 +698,7 @@ export default function PromptBank() {
                       {prompt.result_file_urls.map((url, i) => {
                         const isVideo = url.includes('.mp4') || url.includes('.webm') || url.includes('.mov');
                         return (
-                          <div key={i} className="cursor-pointer hover:opacity-80 transition" onClick={() => setViewingMedia(url)}>
+                          <div key={i} className="cursor-pointer hover:opacity-80 transition" onClick={(e) => { e.stopPropagation(); setViewingMedia(url); }}>
                             {isVideo ? (
                               <div className="relative h-48 bg-black border border-custom-white/10 overflow-hidden">
                                 <video src={url} className="w-full h-full object-cover" />
@@ -741,6 +746,96 @@ export default function PromptBank() {
           </div>
         )}
       </div>
+
+      {/* Prompt Detail Modal */}
+      {viewingPrompt && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setViewingPrompt(null)}>
+          <div className="bg-black border border-custom-white/20 max-w-4xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="sticky top-0 bg-black border-b border-custom-white/10 p-6 flex justify-between items-start">
+              <div>
+                <span className="inline-block px-3 py-1 bg-custom-white text-black text-xs font-medium uppercase tracking-wide mb-3">
+                  {viewingPrompt.tool}
+                </span>
+                <p className="text-xs text-custom-white/40 font-light">{new Date(viewingPrompt.created_at).toLocaleDateString()}</p>
+              </div>
+              <button 
+                onClick={() => setViewingPrompt(null)} 
+                className="text-custom-white/40 hover:text-custom-white transition"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              <div>
+                <h3 className="text-xs font-light text-custom-white/40 mb-3 uppercase tracking-wide">Prompt</h3>
+                <p className="text-custom-white/90 text-base leading-relaxed font-light break-words whitespace-pre-wrap">
+                  {viewingPrompt.prompt}
+                </p>
+              </div>
+              
+              {(viewingPrompt.result_text || (viewingPrompt.result_file_urls && viewingPrompt.result_file_urls.length > 0)) && (
+                <div>
+                  <h3 className="text-xs font-light text-custom-white/40 mb-3 uppercase tracking-wide">Result</h3>
+                  {viewingPrompt.result_text && (
+                    <p className="text-custom-white/80 text-base leading-relaxed mb-4 font-light break-words whitespace-pre-wrap">
+                      {viewingPrompt.result_text}
+                    </p>
+                  )}
+                  {viewingPrompt.result_file_urls && viewingPrompt.result_file_urls.length > 0 && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {viewingPrompt.result_file_urls.map((url, i) => {
+                        const isVideo = url.includes('.mp4') || url.includes('.webm') || url.includes('.mov');
+                        return (
+                          <div key={i} className="cursor-pointer hover:opacity-80 transition" onClick={() => setViewingMedia(url)}>
+                            {isVideo ? (
+                              <div className="relative h-64 bg-black border border-custom-white/10 overflow-hidden">
+                                <video src={url} className="w-full h-full object-cover" />
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                                  <div className="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center">
+                                    <div className="w-0 h-0 border-l-10 border-l-custom-white border-y-8 border-y-transparent ml-1"></div>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="h-64 bg-black border border-custom-white/10 overflow-hidden">
+                                <img src={url} alt="Result" className="w-full h-full object-cover" />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {viewingPrompt.notes && (
+                <div>
+                  <h3 className="text-xs font-light text-custom-white/40 mb-3 uppercase tracking-wide">Notes</h3>
+                  <p className="text-custom-white/60 text-base leading-relaxed font-light break-words whitespace-pre-wrap">
+                    {viewingPrompt.notes}
+                  </p>
+                </div>
+              )}
+              
+              {viewingPrompt.tags && viewingPrompt.tags.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-light text-custom-white/40 mb-3 uppercase tracking-wide">Tags</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {viewingPrompt.tags.map((tag, i) => (
+                      <span key={i} className="inline-flex items-center gap-1 px-3 py-1.5 bg-white/5 border border-custom-white/10 text-custom-white/60 text-sm font-light">
+                        <Tag size={12} />
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
