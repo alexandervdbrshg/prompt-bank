@@ -29,7 +29,7 @@
 
 @font-face {
   font-family: 'Kurdis';
-  src: url('/fonts/Kurdis-ExtraWideExtraBold.otf') format('opentype');
+  src: url('/fonts/Kurdis-ExtraWideBold.otf') format('opentype');
   font-weight: 800;
   font-style: normal;
   font-display: swap;
@@ -52,12 +52,6 @@
   h1, h2, h3, h4, h5, h6 {
     text-transform: uppercase;
     font-weight: 700;
-  }
-
-  /* Ensure h1 specifically uses ExtraWideBold */
-  h1 {
-    font-weight: 700;
-    letter-spacing: 0.02em;
   }
 
   select option {
