@@ -33,8 +33,10 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { name } = await request.json();
+  const { name, description, use_cases } = await request.json();
   const sanitizedName = sanitizeInput(name, 100);
+  const sanitizedDescription = description ? sanitizeInput(description, 1000) : null;
+  const sanitizedUseCases = use_cases ? sanitizeInput(use_cases, 1000) : null;
 
   if (!sanitizedName) {
     return NextResponse.json({ error: 'Tool name required' }, { status: 400 });
@@ -53,7 +55,11 @@ export async function POST(request) {
 
   const { data, error } = await supabaseServer
     .from('tools')
-    .insert([{ name: sanitizedName }])
+    .insert([{ 
+      name: sanitizedName,
+      description: sanitizedDescription,
+      use_cases: sanitizedUseCases
+    }])
     .select();
 
   if (error) {
@@ -63,6 +69,45 @@ export async function POST(request) {
   return NextResponse.json({ tool: data[0] }, { status: 201 });
 }
 
+// PUT update tool
+export async function PUT(request) {
+  if (!await checkAuth()) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const id = searchParams.get('id');
+  
+  if (!id) {
+    return NextResponse.json({ error: 'ID required' }, { status: 400 });
+  }
+
+  const { name, description, use_cases } = await request.json();
+  const sanitizedName = sanitizeInput(name, 100);
+  const sanitizedDescription = description ? sanitizeInput(description, 1000) : null;
+  const sanitizedUseCases = use_cases ? sanitizeInput(use_cases, 1000) : null;
+
+  if (!sanitizedName) {
+    return NextResponse.json({ error: 'Tool name required' }, { status: 400 });
+  }
+
+  const { data, error } = await supabaseServer
+    .from('tools')
+    .update({ 
+      name: sanitizedName,
+      description: sanitizedDescription,
+      use_cases: sanitizedUseCases
+    })
+    .eq('id', id)
+    .select();
+
+  if (error) {
+    return NextResponse.json({ error: 'Failed to update tool' }, { status: 500 });
+  }
+
+  return NextResponse.json({ tool: data[0] });
+}
+
 // DELETE tool
 export async function DELETE(request) {
   if (!await checkAuth()) {
@@ -70,16 +115,22 @@ export async function DELETE(request) {
   }
 
   const { searchParams } = new URL(request.url);
+  const id = searchParams.get('id');
   const name = searchParams.get('name');
 
-  if (!name) {
-    return NextResponse.json({ error: 'Name required' }, { status: 400 });
+  if (!id && !name) {
+    return NextResponse.json({ error: 'ID or name required' }, { status: 400 });
   }
 
-  const { error } = await supabaseServer
-    .from('tools')
-    .delete()
-    .eq('name', name);
+  let query = supabaseServer.from('tools').delete();
+  
+  if (id) {
+    query = query.eq('id', id);
+  } else {
+    query = query.eq('name', name);
+  }
+
+  const { error } = await query;
 
   if (error) {
     return NextResponse.json({ error: 'Failed to delete tool' }, { status: 500 });
