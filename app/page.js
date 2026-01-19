@@ -80,10 +80,10 @@ export default function Home() {
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
             <h1 className="text-custom-white font-kurdis text-4xl md:text-5xl mb-2 tracking-wider">
-              SHG-AI
+              SPORTHOUSE AI
             </h1>
             <p className="text-custom-white/40 text-sm font-light">
-              Everything AI.
+              SporthouseGroup AI Knowledge Base
             </p>
           </div>
           
@@ -91,7 +91,7 @@ export default function Home() {
             <div className="flex items-center gap-3 mb-6">
               <Lock size={20} className="text-custom-white/40" />
               <h2 className="text-custom-white text-lg font-light uppercase tracking-wide">
-                Login Required
+                Authentication Required
               </h2>
             </div>
             
@@ -130,10 +130,10 @@ export default function Home() {
         <div className="w-full max-w-4xl">
           <div className="text-center mb-12">
             <h1 className="text-custom-white font-kurdis text-5xl md:text-7xl mb-4 tracking-wider">
-              PROMPT BANK
+              SPORTHOUSE AI
             </h1>
             <p className="text-custom-white/40 text-base md:text-lg font-light">
-              Choose your workspace
+              SporthouseGroup's AI Command Center
             </p>
           </div>
           
@@ -151,10 +151,10 @@ export default function Home() {
                 </div>
               </div>
               <h2 className="text-custom-white text-2xl md:text-3xl font-kurdis mb-3 tracking-wide">
-                PROMPT BANK
+                PROMPT LIBRARY
               </h2>
               <p className="text-custom-white/60 font-light leading-relaxed mb-4">
-                Browse and manage your collection of successful prompts with results, notes, and tags.
+                Access our team's proven AI prompts with documented results, optimized for SporthouseGroup workflows.
               </p>
               <div className="text-custom-white/40 text-sm font-light uppercase tracking-wide group-hover:text-custom-white/60 transition">
                 Enter →
@@ -175,10 +175,10 @@ export default function Home() {
                 </div>
               </div>
               <h2 className="text-custom-white text-2xl md:text-3xl font-kurdis mb-3 tracking-wide">
-                TOOLS DATABASE
+                AI TOOLS GUIDE
               </h2>
               <p className="text-custom-white/60 font-light leading-relaxed mb-4">
-                Discover and learn about AI tools with detailed descriptions and best use cases.
+                Explore AI tools approved for SporthouseGroup. Learn capabilities, best practices, and ideal use cases.
               </p>
               <div className="text-custom-white/40 text-sm font-light uppercase tracking-wide group-hover:text-custom-white/60 transition">
                 Enter →

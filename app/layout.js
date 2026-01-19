@@ -1,8 +1,8 @@
 import './globals.css'
 
 export const metadata = {
-  title: 'Prompt Bank',
-  description: 'Team collection of working prompts',
+  title: 'Sporthouse AI - SporthouseGroup',
+  description: 'SporthouseGroup AI knowledge base and tools',
 }
 
 export default function RootLayout({ children }) {

@@ -120,15 +120,15 @@ export default function ToolsDatabase({ onNavigate, onLogout }) {
         <div className="mb-8 md:mb-12 border-b border-custom-white/10 pb-6 md:pb-8">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-kurdis tracking-wider mb-2 md:mb-3">TOOLS DATABASE</h1>
-              <p className="text-custom-white/60 text-base md:text-lg font-light">Comprehensive guide to AI tools and their capabilities</p>
+              <h1 className="text-4xl md:text-5xl lg:text-6xl font-kurdis tracking-wider mb-2 md:mb-3">AI TOOLS GUIDE</h1>
+              <p className="text-custom-white/60 text-base md:text-lg font-light">SporthouseGroup's approved AI toolkit</p>
             </div>
             <div className="flex items-center gap-4">
               <button 
                 onClick={() => onNavigate('prompts')} 
                 className="px-4 py-2 text-custom-white/60 hover:text-custom-white transition text-sm whitespace-nowrap"
               >
-                Prompt Bank
+                Prompt Library
               </button>
               <button 
                 onClick={() => onNavigate(null)} 
