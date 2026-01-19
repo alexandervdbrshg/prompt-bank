@@ -1,16 +1,21 @@
 'use client'
 
 import React, { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Lock } from 'lucide-react';
 import PromptBank from '@/components/PromptBank';
 import ToolsDatabase from '@/components/ToolsDatabase';
 
 export default function Home() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [loading, setLoading] = useState(true);
-  const [currentView, setCurrentView] = useState(null); // null, 'prompts', or 'tools'
+  
+  // Get current view from URL parameter
+  const currentView = searchParams.get('view'); // null, 'prompts', or 'tools'
 
   useEffect(() => {
     checkAuthentication();
@@ -60,9 +65,17 @@ export default function Home() {
       await fetch('/api/auth/logout', { method: 'POST' });
       setIsAuthenticated(false);
       setPassword('');
-      setCurrentView(null);
+      router.push('/');
     } catch (error) {
       console.error('Logout error:', error);
+    }
+  };
+
+  const handleNavigate = (view) => {
+    if (view === null) {
+      router.push('/');
+    } else {
+      router.push(`/?view=${view}`);
     }
   };
 
@@ -140,7 +153,7 @@ export default function Home() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Prompt Bank Card */}
             <button
-              onClick={() => setCurrentView('prompts')}
+              onClick={() => handleNavigate('prompts')}
               className="group bg-white/5 border border-custom-white/10 p-8 md:p-12 hover:border-custom-white/30 transition text-left"
             >
               <div className="mb-6">
@@ -163,7 +176,7 @@ export default function Home() {
 
             {/* Tools Database Card */}
             <button
-              onClick={() => setCurrentView('tools')}
+              onClick={() => handleNavigate('tools')}
               className="group bg-white/5 border border-custom-white/10 p-8 md:p-12 hover:border-custom-white/30 transition text-left"
             >
               <div className="mb-6">
@@ -201,10 +214,10 @@ export default function Home() {
 
   // Render the selected view
   if (currentView === 'prompts') {
-    return <PromptBank onNavigate={setCurrentView} onLogout={handleLogout} />;
+    return <PromptBank onNavigate={handleNavigate} onLogout={handleLogout} />;
   }
 
   if (currentView === 'tools') {
-    return <ToolsDatabase onNavigate={setCurrentView} onLogout={handleLogout} />;
+    return <ToolsDatabase onNavigate={handleNavigate} onLogout={handleLogout} />;
   }
 }
