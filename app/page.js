@@ -80,10 +80,10 @@ export default function Home() {
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
             <h1 className="text-custom-white font-kurdis text-4xl md:text-5xl mb-2 tracking-wider">
-              PROMPT BANK
+              SHG-AI
             </h1>
             <p className="text-custom-white/40 text-sm font-light">
-              Team collection of working prompts
+              Everything AI.
             </p>
           </div>
           
@@ -91,7 +91,7 @@ export default function Home() {
             <div className="flex items-center gap-3 mb-6">
               <Lock size={20} className="text-custom-white/40" />
               <h2 className="text-custom-white text-lg font-light uppercase tracking-wide">
-                Authentication Required
+                Login Required
               </h2>
             </div>
             
