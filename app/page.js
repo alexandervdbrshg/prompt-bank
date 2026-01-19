@@ -1,12 +1,12 @@
 'use client'
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Lock } from 'lucide-react';
 import PromptBank from '@/components/PromptBank';
 import ToolsDatabase from '@/components/ToolsDatabase';
 
-export default function Home() {
+function HomeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -220,4 +220,16 @@ export default function Home() {
   if (currentView === 'tools') {
     return <ToolsDatabase onNavigate={handleNavigate} onLogout={handleLogout} />;
   }
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-custom-white/40 text-lg">Loading...</div>
+      </div>
+    }>
+      <HomeContent />
+    </Suspense>
+  );
 }
