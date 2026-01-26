@@ -1,9 +1,16 @@
 'use client'
 
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, X, Edit2, ChevronDown, ChevronUp, Star, Upload, Image as ImageIcon } from 'lucide-react';
+import { Search, Plus, X, Edit2, ChevronDown, ChevronUp, Star, Upload } from 'lucide-react';
+import { createClient } from '@supabase/supabase-js';
 
 const TAGS = ['Video', 'Photo', 'Text', 'Other'];
+
+// Initialize Supabase client for direct uploads
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
 
 export default function ToolsDatabase({ onNavigate, onLogout }) {
   const [tools, setTools] = useState([]);
@@ -15,6 +22,7 @@ export default function ToolsDatabase({ onNavigate, onLogout }) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingTool, setEditingTool] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     model: '',
@@ -82,6 +90,39 @@ export default function ToolsDatabase({ onNavigate, onLogout }) {
     });
   };
 
+  const uploadImagesToSupabase = async (files) => {
+    const uploadedUrls = [];
+    
+    for (const file of files) {
+      try {
+        const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}-${file.name}`;
+        
+        const { data, error } = await supabase.storage
+          .from('tool-examples')
+          .upload(fileName, file, {
+            cacheControl: '3600',
+            upsert: false
+          });
+
+        if (error) {
+          console.error('Upload error:', error);
+          throw error;
+        }
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('tool-examples')
+          .getPublicUrl(fileName);
+
+        uploadedUrls.push(publicUrl);
+      } catch (error) {
+        console.error('Error uploading file:', error);
+        throw new Error(`Failed to upload ${file.name}`);
+      }
+    }
+    
+    return uploadedUrls;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -90,26 +131,36 @@ export default function ToolsDatabase({ onNavigate, onLogout }) {
       return;
     }
 
+    setUploading(true);
+
     try {
-      const submitData = new FormData();
-      submitData.append('name', formData.name);
-      submitData.append('model', formData.model);
-      submitData.append('tag', formData.tag);
-      submitData.append('description', formData.description);
-      submitData.append('use_cases', formData.use_cases);
-      submitData.append('rating', formData.rating);
-      submitData.append('example_explanations', formData.example_explanations);
-      
-      formData.example_images.forEach(file => {
-        submitData.append('example_images', file);
-      });
+      // Upload images directly to Supabase first
+      let imageUrls = [];
+      if (formData.example_images.length > 0) {
+        imageUrls = await uploadImagesToSupabase(formData.example_images);
+      }
+
+      // If editing, merge with existing images
+      if (editingTool && editingTool.example_image_urls) {
+        imageUrls = [...editingTool.example_image_urls, ...imageUrls];
+      }
 
       const endpoint = editingTool ? `/api/tools?id=${editingTool.id}` : '/api/tools';
       const method = editingTool ? 'PUT' : 'POST';
       
       const response = await fetch(endpoint, {
         method,
-        body: submitData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formData.name,
+          model: formData.model,
+          tag: formData.tag,
+          description: formData.description,
+          use_cases: formData.use_cases,
+          rating: formData.rating,
+          example_explanations: formData.example_explanations,
+          example_image_urls: imageUrls
+        }),
       });
 
       if (response.ok) {
@@ -136,7 +187,10 @@ export default function ToolsDatabase({ onNavigate, onLogout }) {
         alert(error.error || 'Failed to save tool');
       }
     } catch (error) {
-      alert('Error saving tool. Please try again.');
+      console.error('Error saving tool:', error);
+      alert(error.message || 'Error saving tool. Please try again.');
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -463,6 +517,7 @@ export default function ToolsDatabase({ onNavigate, onLogout }) {
                       });
                     }} 
                     className="text-custom-white/40 hover:text-custom-white transition"
+                    disabled={uploading}
                   >
                     <X size={24} />
                   </button>
@@ -481,6 +536,7 @@ export default function ToolsDatabase({ onNavigate, onLogout }) {
                         placeholder="e.g., ChatGPT, Midjourney, Claude" 
                         className="w-full px-4 py-3 bg-white/5 border border-custom-white/10 text-custom-white placeholder-custom-white/30 focus:outline-none focus:border-custom-white/30 transition font-light" 
                         required
+                        disabled={uploading}
                       />
                     </div>
                     
@@ -494,6 +550,7 @@ export default function ToolsDatabase({ onNavigate, onLogout }) {
                         onChange={(e) => setFormData({ ...formData, model: e.target.value })} 
                         placeholder="e.g., GPT-4, Claude 3.5 Sonnet" 
                         className="w-full px-4 py-3 bg-white/5 border border-custom-white/10 text-custom-white placeholder-custom-white/30 focus:outline-none focus:border-custom-white/30 transition font-light" 
+                        disabled={uploading}
                       />
                     </div>
                   </div>
@@ -507,6 +564,7 @@ export default function ToolsDatabase({ onNavigate, onLogout }) {
                         value={formData.tag} 
                         onChange={(e) => setFormData({ ...formData, tag: e.target.value })} 
                         className="w-full px-4 py-3 bg-white/5 border border-custom-white/10 text-custom-white focus:outline-none focus:border-custom-white/30 appearance-none transition font-light"
+                        disabled={uploading}
                       >
                         {TAGS.map(tag => (
                           <option key={tag} value={tag}>{tag}</option>
@@ -524,7 +582,12 @@ export default function ToolsDatabase({ onNavigate, onLogout }) {
                             key={rating}
                             type="button"
                             onClick={() => setFormData({ ...formData, rating })}
-                            className="flex-1 px-4 py-3 bg-white/5 border border-custom-white/10 text-custom-white hover:bg-white/10 transition font-light"
+                            className={`flex-1 px-4 py-3 border transition font-light ${
+                              formData.rating === rating 
+                                ? 'bg-custom-white text-black border-custom-white' 
+                                : 'bg-white/5 border-custom-white/10 text-custom-white hover:bg-white/10'
+                            }`}
+                            disabled={uploading}
                           >
                             {rating}
                           </button>
@@ -543,6 +606,7 @@ export default function ToolsDatabase({ onNavigate, onLogout }) {
                       placeholder="What does this tool do? What are its main features?" 
                       rows={4}
                       className="w-full px-4 py-3 bg-white/5 border border-custom-white/10 text-custom-white placeholder-custom-white/30 focus:outline-none focus:border-custom-white/30 transition resize-none font-light" 
+                      disabled={uploading}
                     />
                   </div>
                   
@@ -556,6 +620,7 @@ export default function ToolsDatabase({ onNavigate, onLogout }) {
                       placeholder="When should you use this tool? What problems does it solve best?" 
                       rows={4}
                       className="w-full px-4 py-3 bg-white/5 border border-custom-white/10 text-custom-white placeholder-custom-white/30 focus:outline-none focus:border-custom-white/30 transition resize-none font-light" 
+                      disabled={uploading}
                     />
                   </div>
 
@@ -569,46 +634,71 @@ export default function ToolsDatabase({ onNavigate, onLogout }) {
                       placeholder="Explain the examples you're uploading - what do they demonstrate?" 
                       rows={3}
                       className="w-full px-4 py-3 bg-white/5 border border-custom-white/10 text-custom-white placeholder-custom-white/30 focus:outline-none focus:border-custom-white/30 transition resize-none font-light" 
+                      disabled={uploading}
                     />
                   </div>
 
                   <div>
                     <label className="block text-xs font-light text-custom-white/40 mb-2 uppercase tracking-wide">
-                      Example Images (Max 5)
+                      Example Images (Max 5, up to 10MB each)
                     </label>
                     <div className="space-y-3">
-                      <label className="block w-full px-4 py-8 bg-white/5 border-2 border-dashed border-custom-white/20 text-custom-white/40 hover:border-custom-white/40 transition cursor-pointer text-center">
+                      <label className={`block w-full px-4 py-8 bg-white/5 border-2 border-dashed border-custom-white/20 text-custom-white/40 transition text-center ${uploading ? 'opacity-50 cursor-not-allowed' : 'hover:border-custom-white/40 cursor-pointer'}`}>
                         <Upload className="mx-auto mb-2" size={24} />
-                        <span className="text-sm font-light">Click to upload example images</span>
+                        <span className="text-sm font-light">
+                          {uploading ? 'Uploading...' : 'Click to upload example images'}
+                        </span>
                         <input 
                           type="file" 
                           accept="image/*" 
                           multiple 
                           onChange={handleFileUpload} 
                           className="hidden" 
+                          disabled={uploading}
                         />
                       </label>
 
-                      {formData.example_images.length > 0 && (
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                          {formData.example_images.map((file, i) => (
-                            <div key={i} className="relative group">
-                              <div className="aspect-video bg-black border border-custom-white/10 overflow-hidden">
+                      {editingTool && editingTool.example_image_urls && editingTool.example_image_urls.length > 0 && (
+                        <div>
+                          <p className="text-xs text-custom-white/40 mb-2">Existing Images:</p>
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                            {editingTool.example_image_urls.map((url, i) => (
+                              <div key={i} className="aspect-video bg-black border border-custom-white/10 overflow-hidden">
                                 <img 
-                                  src={URL.createObjectURL(file)} 
-                                  alt={`Example ${i + 1}`} 
+                                  src={url} 
+                                  alt={`Existing ${i + 1}`} 
                                   className="w-full h-full object-cover" 
                                 />
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => removeFile(i)}
-                                className="absolute top-2 right-2 bg-black/80 p-1 text-custom-white/60 hover:text-custom-white transition"
-                              >
-                                <X size={16} />
-                              </button>
-                            </div>
-                          ))}
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {formData.example_images.length > 0 && (
+                        <div>
+                          <p className="text-xs text-custom-white/40 mb-2">New Images to Upload:</p>
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                            {formData.example_images.map((file, i) => (
+                              <div key={i} className="relative group">
+                                <div className="aspect-video bg-black border border-custom-white/10 overflow-hidden">
+                                  <img 
+                                    src={URL.createObjectURL(file)} 
+                                    alt={`New ${i + 1}`} 
+                                    className="w-full h-full object-cover" 
+                                  />
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => removeFile(i)}
+                                  className="absolute top-2 right-2 bg-black/80 p-1 text-custom-white/60 hover:text-custom-white transition"
+                                  disabled={uploading}
+                                >
+                                  <X size={16} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -617,9 +707,10 @@ export default function ToolsDatabase({ onNavigate, onLogout }) {
                   <div className="flex gap-3 pt-4">
                     <button 
                       type="submit" 
-                      className="flex-1 px-6 py-3 bg-custom-white text-black hover:bg-custom-white/90 transition font-medium uppercase tracking-wide"
+                      className="flex-1 px-6 py-3 bg-custom-white text-black hover:bg-custom-white/90 transition font-medium uppercase tracking-wide disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={uploading}
                     >
-                      {editingTool ? 'Update Tool' : 'Add Tool'}
+                      {uploading ? 'Uploading...' : (editingTool ? 'Update Tool' : 'Add Tool')}
                     </button>
                     <button 
                       type="button" 
@@ -637,7 +728,8 @@ export default function ToolsDatabase({ onNavigate, onLogout }) {
                           example_explanations: '',
                         });
                       }} 
-                      className="flex-1 px-6 py-3 border border-custom-white/20 text-custom-white hover:bg-white/5 transition font-light uppercase tracking-wide"
+                      className="flex-1 px-6 py-3 border border-custom-white/20 text-custom-white hover:bg-white/5 transition font-light uppercase tracking-wide disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={uploading}
                     >
                       Cancel
                     </button>
