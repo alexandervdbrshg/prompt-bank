@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, X, Edit2, ChevronDown, ChevronUp, Star, Upload } from 'lucide-react';
+import { Search, Plus, X, Edit2, ChevronDown, ChevronUp, Star, Upload, ChevronRight } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
 const TAGS = ['Video', 'Photo', 'Text', 'Other'];
@@ -14,24 +14,32 @@ const supabase = createClient(
 
 export default function ToolsDatabase({ onNavigate, onLogout }) {
   const [tools, setTools] = useState([]);
+  const [useCases, setUseCases] = useState({}); // { toolId: [useCases] }
   const [prompts, setPrompts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterTag, setFilterTag] = useState('all');
   const [expandedTool, setExpandedTool] = useState(null);
-  const [showAddForm, setShowAddForm] = useState(false);
+  const [showAddToolForm, setShowAddToolForm] = useState(false);
+  const [showAddUseCaseForm, setShowAddUseCaseForm] = useState(false);
   const [editingTool, setEditingTool] = useState(null);
+  const [editingUseCase, setEditingUseCase] = useState(null);
+  const [currentToolForUseCase, setCurrentToolForUseCase] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [uploading, setUploading] = useState(false);
-  const [formData, setFormData] = useState({
+  
+  const [toolFormData, setToolFormData] = useState({
     name: '',
     model: '',
     tag: 'Other',
     description: '',
-    use_cases: '',
     rating: 0,
+  });
+
+  const [useCaseFormData, setUseCaseFormData] = useState({
+    title: '',
+    explanation: '',
     example_images: [],
-    example_explanations: '',
   });
 
   useEffect(() => {
@@ -49,6 +57,11 @@ export default function ToolsDatabase({ onNavigate, onLogout }) {
       if (toolsRes.ok) {
         const data = await toolsRes.json();
         setTools(data.tools);
+        
+        // Load use cases for each tool
+        for (const tool of data.tools) {
+          loadUseCases(tool.id);
+        }
       }
       
       if (promptsRes.ok) {
@@ -62,10 +75,22 @@ export default function ToolsDatabase({ onNavigate, onLogout }) {
     }
   };
 
+  const loadUseCases = async (toolId) => {
+    try {
+      const response = await fetch(`/api/use-cases?tool_id=${toolId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setUseCases(prev => ({ ...prev, [toolId]: data.use_cases }));
+      }
+    } catch (error) {
+      console.error('Error loading use cases:', error);
+    }
+  };
+
   const handleFileUpload = (e) => {
     const files = Array.from(e.target.files);
     
-    if (formData.example_images.length + files.length > 5) {
+    if (useCaseFormData.example_images.length + files.length > 5) {
       alert('Maximum 5 example images allowed');
       return;
     }
@@ -77,16 +102,16 @@ export default function ToolsDatabase({ onNavigate, onLogout }) {
       }
     }
     
-    setFormData({
-      ...formData,
-      example_images: [...formData.example_images, ...files]
+    setUseCaseFormData({
+      ...useCaseFormData,
+      example_images: [...useCaseFormData.example_images, ...files]
     });
   };
 
   const removeFile = (index) => {
-    setFormData({
-      ...formData,
-      example_images: formData.example_images.filter((_, i) => i !== index)
+    setUseCaseFormData({
+      ...useCaseFormData,
+      example_images: useCaseFormData.example_images.filter((_, i) => i !== index)
     });
   };
 
@@ -123,44 +148,22 @@ export default function ToolsDatabase({ onNavigate, onLogout }) {
     return uploadedUrls;
   };
 
-  const handleSubmit = async (e) => {
+  const handleToolSubmit = async (e) => {
     e.preventDefault();
     
-    if (!formData.name.trim()) {
+    if (!toolFormData.name.trim()) {
       alert('Tool name is required');
       return;
     }
 
-    setUploading(true);
-
     try {
-      // Upload images directly to Supabase first
-      let imageUrls = [];
-      if (formData.example_images.length > 0) {
-        imageUrls = await uploadImagesToSupabase(formData.example_images);
-      }
-
-      // If editing, merge with existing images
-      if (editingTool && editingTool.example_image_urls) {
-        imageUrls = [...editingTool.example_image_urls, ...imageUrls];
-      }
-
       const endpoint = editingTool ? `/api/tools?id=${editingTool.id}` : '/api/tools';
       const method = editingTool ? 'PUT' : 'POST';
       
       const response = await fetch(endpoint, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: formData.name,
-          model: formData.model,
-          tag: formData.tag,
-          description: formData.description,
-          use_cases: formData.use_cases,
-          rating: formData.rating,
-          example_explanations: formData.example_explanations,
-          example_image_urls: imageUrls
-        }),
+        body: JSON.stringify(toolFormData),
       });
 
       if (response.ok) {
@@ -170,17 +173,14 @@ export default function ToolsDatabase({ onNavigate, onLogout }) {
         } else {
           setTools([data.tool, ...tools]);
         }
-        setShowAddForm(false);
+        setShowAddToolForm(false);
         setEditingTool(null);
-        setFormData({ 
+        setToolFormData({ 
           name: '', 
           model: '', 
           tag: 'Other', 
           description: '', 
-          use_cases: '',
           rating: 0,
-          example_images: [],
-          example_explanations: '',
         });
       } else {
         const error = await response.json();
@@ -188,28 +188,94 @@ export default function ToolsDatabase({ onNavigate, onLogout }) {
       }
     } catch (error) {
       console.error('Error saving tool:', error);
-      alert(error.message || 'Error saving tool. Please try again.');
+      alert('Error saving tool. Please try again.');
+    }
+  };
+
+  const handleUseCaseSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!useCaseFormData.title.trim()) {
+      alert('Use case title is required');
+      return;
+    }
+
+    setUploading(true);
+
+    try {
+      // Upload images directly to Supabase first
+      let imageUrls = [];
+      if (useCaseFormData.example_images.length > 0) {
+        imageUrls = await uploadImagesToSupabase(useCaseFormData.example_images);
+      }
+
+      // If editing, merge with existing images
+      if (editingUseCase && editingUseCase.example_image_urls) {
+        imageUrls = [...editingUseCase.example_image_urls, ...imageUrls];
+      }
+
+      const endpoint = editingUseCase 
+        ? `/api/use-cases?id=${editingUseCase.id}` 
+        : '/api/use-cases';
+      const method = editingUseCase ? 'PUT' : 'POST';
+      
+      const response = await fetch(endpoint, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tool_id: currentToolForUseCase,
+          title: useCaseFormData.title,
+          explanation: useCaseFormData.explanation,
+          example_image_urls: imageUrls
+        }),
+      });
+
+      if (response.ok) {
+        // Reload use cases for this tool
+        await loadUseCases(currentToolForUseCase);
+        setShowAddUseCaseForm(false);
+        setEditingUseCase(null);
+        setUseCaseFormData({ 
+          title: '', 
+          explanation: '', 
+          example_images: [],
+        });
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Failed to save use case');
+      }
+    } catch (error) {
+      console.error('Error saving use case:', error);
+      alert(error.message || 'Error saving use case. Please try again.');
     } finally {
       setUploading(false);
     }
   };
 
-  const handleEdit = (tool) => {
-    setFormData({
+  const handleEditTool = (tool) => {
+    setToolFormData({
       name: tool.name,
       model: tool.model || '',
       tag: tool.tag || 'Other',
       description: tool.description || '',
-      use_cases: tool.use_cases || '',
       rating: tool.rating || 0,
-      example_images: [],
-      example_explanations: tool.example_explanations || '',
     });
     setEditingTool(tool);
-    setShowAddForm(true);
+    setShowAddToolForm(true);
   };
 
-  const handleDelete = async (id) => {
+  const handleEditUseCase = (useCase, toolId) => {
+    setUseCaseFormData({
+      title: useCase.title,
+      explanation: useCase.explanation || '',
+      example_images: [],
+    });
+    setEditingUseCase(useCase);
+    setCurrentToolForUseCase(toolId);
+    setShowAddUseCaseForm(true);
+  };
+
+  const handleDeleteTool = async (id) => {
     try {
       const response = await fetch(`/api/tools?id=${id}`, {
         method: 'DELETE',
@@ -223,6 +289,22 @@ export default function ToolsDatabase({ onNavigate, onLogout }) {
       }
     } catch (error) {
       alert('Error deleting tool');
+    }
+  };
+
+  const handleDeleteUseCase = async (id, toolId) => {
+    try {
+      const response = await fetch(`/api/use-cases?id=${id}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        await loadUseCases(toolId);
+      } else {
+        alert('Failed to delete use case');
+      }
+    } catch (error) {
+      alert('Error deleting use case');
     }
   };
 
@@ -308,17 +390,14 @@ export default function ToolsDatabase({ onNavigate, onLogout }) {
           
           <button 
             onClick={() => {
-              setShowAddForm(true);
+              setShowAddToolForm(true);
               setEditingTool(null);
-              setFormData({ 
+              setToolFormData({ 
                 name: '', 
                 model: '', 
                 tag: 'Other', 
                 description: '', 
-                use_cases: '',
                 rating: 0,
-                example_images: [],
-                example_explanations: '',
               });
             }} 
             className="px-6 py-3 bg-custom-white text-black hover:bg-custom-white/90 transition flex items-center justify-center gap-2 font-medium whitespace-nowrap"
@@ -384,13 +463,13 @@ export default function ToolsDatabase({ onNavigate, onLogout }) {
                   </div>
                   <div className="col-span-2 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                     <button 
-                      onClick={() => handleEdit(tool)} 
+                      onClick={() => handleEditTool(tool)} 
                       className="text-custom-white/40 hover:text-custom-white transition"
                     >
                       <Edit2 size={18} />
                     </button>
                     <button 
-                      onClick={() => setDeleteConfirm(tool.id)} 
+                      onClick={() => setDeleteConfirm({ type: 'tool', id: tool.id })} 
                       className="text-custom-white/40 hover:text-custom-white transition"
                     >
                       <X size={18} />
@@ -402,7 +481,7 @@ export default function ToolsDatabase({ onNavigate, onLogout }) {
                 {expandedTool === tool.id && (
                   <div className="bg-white/[0.02] border-b border-custom-white/10 px-6 py-6">
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                      {/* Left Column */}
+                      {/* Left Column - Tool Info */}
                       <div className="space-y-6">
                         {tool.description && (
                           <div>
@@ -413,37 +492,73 @@ export default function ToolsDatabase({ onNavigate, onLogout }) {
                           </div>
                         )}
 
-                        {tool.use_cases && (
-                          <div>
-                            <h3 className="text-xs font-light text-custom-white/40 mb-3 uppercase tracking-wide">Use Cases</h3>
-                            <p className="text-custom-white/80 text-sm leading-relaxed font-light whitespace-pre-wrap">
-                              {tool.use_cases}
-                            </p>
+                        {/* Use Cases Section */}
+                        <div>
+                          <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-xs font-light text-custom-white/40 uppercase tracking-wide">Use Cases</h3>
+                            <button
+                              onClick={() => {
+                                setCurrentToolForUseCase(tool.id);
+                                setEditingUseCase(null);
+                                setUseCaseFormData({ title: '', explanation: '', example_images: [] });
+                                setShowAddUseCaseForm(true);
+                              }}
+                              className="text-xs text-custom-white/60 hover:text-custom-white transition flex items-center gap-1"
+                            >
+                              <Plus size={14} />
+                              Add Use Case
+                            </button>
                           </div>
-                        )}
 
-                        {tool.example_explanations && (
-                          <div>
-                            <h3 className="text-xs font-light text-custom-white/40 mb-3 uppercase tracking-wide">Example Explanations</h3>
-                            <p className="text-custom-white/80 text-sm leading-relaxed font-light whitespace-pre-wrap">
-                              {tool.example_explanations}
+                          {(!useCases[tool.id] || useCases[tool.id].length === 0) ? (
+                            <p className="text-custom-white/40 text-sm font-light italic">
+                              No use cases yet. Click "Add Use Case" to create one.
                             </p>
-                          </div>
-                        )}
+                          ) : (
+                            <div className="space-y-3">
+                              {useCases[tool.id].map(useCase => (
+                                <div 
+                                  key={useCase.id}
+                                  className="bg-white/5 border border-custom-white/10 p-4"
+                                >
+                                  <div className="flex items-start justify-between mb-2">
+                                    <h4 className="text-custom-white font-light">{useCase.title}</h4>
+                                    <div className="flex gap-2">
+                                      <button
+                                        onClick={() => handleEditUseCase(useCase, tool.id)}
+                                        className="text-custom-white/40 hover:text-custom-white transition"
+                                      >
+                                        <Edit2 size={14} />
+                                      </button>
+                                      <button
+                                        onClick={() => setDeleteConfirm({ type: 'useCase', id: useCase.id, toolId: tool.id })}
+                                        className="text-custom-white/40 hover:text-custom-white transition"
+                                      >
+                                        <X size={14} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                  
+                                  {useCase.explanation && (
+                                    <p className="text-custom-white/60 text-sm font-light mb-3 whitespace-pre-wrap">
+                                      {useCase.explanation}
+                                    </p>
+                                  )}
 
-                        {/* Example Images */}
-                        {tool.example_image_urls && tool.example_image_urls.length > 0 && (
-                          <div>
-                            <h3 className="text-xs font-light text-custom-white/40 mb-3 uppercase tracking-wide">Example Images</h3>
-                            <div className="grid grid-cols-2 gap-3">
-                              {tool.example_image_urls.map((url, i) => (
-                                <div key={i} className="aspect-video bg-black border border-custom-white/10 overflow-hidden">
-                                  <img src={url} alt={`Example ${i + 1}`} className="w-full h-full object-cover" />
+                                  {useCase.example_image_urls && useCase.example_image_urls.length > 0 && (
+                                    <div className="grid grid-cols-2 gap-2">
+                                      {useCase.example_image_urls.map((url, i) => (
+                                        <div key={i} className="aspect-video bg-black border border-custom-white/10 overflow-hidden">
+                                          <img src={url} alt={`Example ${i + 1}`} className="w-full h-full object-cover" />
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
                               ))}
                             </div>
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
 
                       {/* Right Column - Suggested Prompts */}
@@ -492,10 +607,10 @@ export default function ToolsDatabase({ onNavigate, onLogout }) {
           )}
         </div>
 
-        {/* Add/Edit Form Modal */}
-        {showAddForm && (
+        {/* Add/Edit Tool Form Modal */}
+        {showAddToolForm && (
           <div className="fixed inset-0 bg-black/80 flex items-start justify-center p-4 z-50 overflow-y-auto pt-8 pb-8">
-            <div className="bg-black border border-custom-white/20 w-full max-w-4xl">
+            <div className="bg-black border border-custom-white/20 w-full max-w-2xl">
               <div className="p-6 md:p-8">
                 <div className="flex justify-between items-center mb-6 md:mb-8 pb-4 md:pb-6 border-b border-custom-white/10">
                   <h2 className="text-2xl md:text-3xl font-kurdis tracking-wide">
@@ -503,27 +618,16 @@ export default function ToolsDatabase({ onNavigate, onLogout }) {
                   </h2>
                   <button 
                     onClick={() => {
-                      setShowAddForm(false);
+                      setShowAddToolForm(false);
                       setEditingTool(null);
-                      setFormData({ 
-                        name: '', 
-                        model: '', 
-                        tag: 'Other', 
-                        description: '', 
-                        use_cases: '',
-                        rating: 0,
-                        example_images: [],
-                        example_explanations: '',
-                      });
                     }} 
                     className="text-custom-white/40 hover:text-custom-white transition"
-                    disabled={uploading}
                   >
                     <X size={24} />
                   </button>
                 </div>
                 
-                <form onSubmit={handleSubmit} className="space-y-6">
+                <form onSubmit={handleToolSubmit} className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                       <label className="block text-xs font-light text-custom-white/40 mb-2 uppercase tracking-wide">
@@ -531,12 +635,11 @@ export default function ToolsDatabase({ onNavigate, onLogout }) {
                       </label>
                       <input 
                         type="text" 
-                        value={formData.name} 
-                        onChange={(e) => setFormData({ ...formData, name: e.target.value })} 
+                        value={toolFormData.name} 
+                        onChange={(e) => setToolFormData({ ...toolFormData, name: e.target.value })} 
                         placeholder="e.g., ChatGPT, Midjourney, Claude" 
                         className="w-full px-4 py-3 bg-white/5 border border-custom-white/10 text-custom-white placeholder-custom-white/30 focus:outline-none focus:border-custom-white/30 transition font-light" 
                         required
-                        disabled={uploading}
                       />
                     </div>
                     
@@ -546,11 +649,10 @@ export default function ToolsDatabase({ onNavigate, onLogout }) {
                       </label>
                       <input 
                         type="text" 
-                        value={formData.model} 
-                        onChange={(e) => setFormData({ ...formData, model: e.target.value })} 
+                        value={toolFormData.model} 
+                        onChange={(e) => setToolFormData({ ...toolFormData, model: e.target.value })} 
                         placeholder="e.g., GPT-4, Claude 3.5 Sonnet" 
                         className="w-full px-4 py-3 bg-white/5 border border-custom-white/10 text-custom-white placeholder-custom-white/30 focus:outline-none focus:border-custom-white/30 transition font-light" 
-                        disabled={uploading}
                       />
                     </div>
                   </div>
@@ -561,10 +663,9 @@ export default function ToolsDatabase({ onNavigate, onLogout }) {
                         Tag
                       </label>
                       <select 
-                        value={formData.tag} 
-                        onChange={(e) => setFormData({ ...formData, tag: e.target.value })} 
+                        value={toolFormData.tag} 
+                        onChange={(e) => setToolFormData({ ...toolFormData, tag: e.target.value })} 
                         className="w-full px-4 py-3 bg-white/5 border border-custom-white/10 text-custom-white focus:outline-none focus:border-custom-white/30 appearance-none transition font-light"
-                        disabled={uploading}
                       >
                         {TAGS.map(tag => (
                           <option key={tag} value={tag}>{tag}</option>
@@ -581,13 +682,12 @@ export default function ToolsDatabase({ onNavigate, onLogout }) {
                           <button
                             key={rating}
                             type="button"
-                            onClick={() => setFormData({ ...formData, rating })}
+                            onClick={() => setToolFormData({ ...toolFormData, rating })}
                             className={`flex-1 px-4 py-3 border transition font-light ${
-                              formData.rating === rating 
+                              toolFormData.rating === rating 
                                 ? 'bg-custom-white text-black border-custom-white' 
                                 : 'bg-white/5 border-custom-white/10 text-custom-white hover:bg-white/10'
                             }`}
-                            disabled={uploading}
                           >
                             {rating}
                           </button>
@@ -601,38 +701,84 @@ export default function ToolsDatabase({ onNavigate, onLogout }) {
                       Description
                     </label>
                     <textarea 
-                      value={formData.description} 
-                      onChange={(e) => setFormData({ ...formData, description: e.target.value })} 
+                      value={toolFormData.description} 
+                      onChange={(e) => setToolFormData({ ...toolFormData, description: e.target.value })} 
                       placeholder="What does this tool do? What are its main features?" 
                       rows={4}
                       className="w-full px-4 py-3 bg-white/5 border border-custom-white/10 text-custom-white placeholder-custom-white/30 focus:outline-none focus:border-custom-white/30 transition resize-none font-light" 
+                    />
+                  </div>
+                  
+                  <div className="flex gap-3 pt-4">
+                    <button 
+                      type="submit" 
+                      className="flex-1 px-6 py-3 bg-custom-white text-black hover:bg-custom-white/90 transition font-medium uppercase tracking-wide"
+                    >
+                      {editingTool ? 'Update Tool' : 'Add Tool'}
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        setShowAddToolForm(false);
+                        setEditingTool(null);
+                      }} 
+                      className="flex-1 px-6 py-3 border border-custom-white/20 text-custom-white hover:bg-white/5 transition font-light uppercase tracking-wide"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Add/Edit Use Case Form Modal */}
+        {showAddUseCaseForm && (
+          <div className="fixed inset-0 bg-black/80 flex items-start justify-center p-4 z-50 overflow-y-auto pt-8 pb-8">
+            <div className="bg-black border border-custom-white/20 w-full max-w-3xl">
+              <div className="p-6 md:p-8">
+                <div className="flex justify-between items-center mb-6 md:mb-8 pb-4 md:pb-6 border-b border-custom-white/10">
+                  <h2 className="text-2xl md:text-3xl font-kurdis tracking-wide">
+                    {editingUseCase ? 'EDIT USE CASE' : 'ADD USE CASE'}
+                  </h2>
+                  <button 
+                    onClick={() => {
+                      setShowAddUseCaseForm(false);
+                      setEditingUseCase(null);
+                    }} 
+                    className="text-custom-white/40 hover:text-custom-white transition"
+                    disabled={uploading}
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
+                
+                <form onSubmit={handleUseCaseSubmit} className="space-y-6">
+                  <div>
+                    <label className="block text-xs font-light text-custom-white/40 mb-2 uppercase tracking-wide">
+                      Title *
+                    </label>
+                    <input 
+                      type="text" 
+                      value={useCaseFormData.title} 
+                      onChange={(e) => setUseCaseFormData({ ...useCaseFormData, title: e.target.value })} 
+                      placeholder="e.g., Sport Vlaanderen Text, Championship Visuals" 
+                      className="w-full px-4 py-3 bg-white/5 border border-custom-white/10 text-custom-white placeholder-custom-white/30 focus:outline-none focus:border-custom-white/30 transition font-light" 
+                      required
                       disabled={uploading}
                     />
                   </div>
                   
                   <div>
                     <label className="block text-xs font-light text-custom-white/40 mb-2 uppercase tracking-wide">
-                      Use Cases
+                      Explanation
                     </label>
                     <textarea 
-                      value={formData.use_cases} 
-                      onChange={(e) => setFormData({ ...formData, use_cases: e.target.value })} 
-                      placeholder="When should you use this tool? What problems does it solve best?" 
+                      value={useCaseFormData.explanation} 
+                      onChange={(e) => setUseCaseFormData({ ...useCaseFormData, explanation: e.target.value })} 
+                      placeholder="Explain what this use case demonstrates..." 
                       rows={4}
-                      className="w-full px-4 py-3 bg-white/5 border border-custom-white/10 text-custom-white placeholder-custom-white/30 focus:outline-none focus:border-custom-white/30 transition resize-none font-light" 
-                      disabled={uploading}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-light text-custom-white/40 mb-2 uppercase tracking-wide">
-                      Example Explanations
-                    </label>
-                    <textarea 
-                      value={formData.example_explanations} 
-                      onChange={(e) => setFormData({ ...formData, example_explanations: e.target.value })} 
-                      placeholder="Explain the examples you're uploading - what do they demonstrate?" 
-                      rows={3}
                       className="w-full px-4 py-3 bg-white/5 border border-custom-white/10 text-custom-white placeholder-custom-white/30 focus:outline-none focus:border-custom-white/30 transition resize-none font-light" 
                       disabled={uploading}
                     />
@@ -658,11 +804,11 @@ export default function ToolsDatabase({ onNavigate, onLogout }) {
                         />
                       </label>
 
-                      {editingTool && editingTool.example_image_urls && editingTool.example_image_urls.length > 0 && (
+                      {editingUseCase && editingUseCase.example_image_urls && editingUseCase.example_image_urls.length > 0 && (
                         <div>
                           <p className="text-xs text-custom-white/40 mb-2">Existing Images:</p>
                           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                            {editingTool.example_image_urls.map((url, i) => (
+                            {editingUseCase.example_image_urls.map((url, i) => (
                               <div key={i} className="aspect-video bg-black border border-custom-white/10 overflow-hidden">
                                 <img 
                                   src={url} 
@@ -675,11 +821,11 @@ export default function ToolsDatabase({ onNavigate, onLogout }) {
                         </div>
                       )}
 
-                      {formData.example_images.length > 0 && (
+                      {useCaseFormData.example_images.length > 0 && (
                         <div>
                           <p className="text-xs text-custom-white/40 mb-2">New Images to Upload:</p>
                           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                            {formData.example_images.map((file, i) => (
+                            {useCaseFormData.example_images.map((file, i) => (
                               <div key={i} className="relative group">
                                 <div className="aspect-video bg-black border border-custom-white/10 overflow-hidden">
                                   <img 
@@ -710,23 +856,13 @@ export default function ToolsDatabase({ onNavigate, onLogout }) {
                       className="flex-1 px-6 py-3 bg-custom-white text-black hover:bg-custom-white/90 transition font-medium uppercase tracking-wide disabled:opacity-50 disabled:cursor-not-allowed"
                       disabled={uploading}
                     >
-                      {uploading ? 'Uploading...' : (editingTool ? 'Update Tool' : 'Add Tool')}
+                      {uploading ? 'Uploading...' : (editingUseCase ? 'Update Use Case' : 'Add Use Case')}
                     </button>
                     <button 
                       type="button" 
                       onClick={() => {
-                        setShowAddForm(false);
-                        setEditingTool(null);
-                        setFormData({ 
-                          name: '', 
-                          model: '', 
-                          tag: 'Other', 
-                          description: '', 
-                          use_cases: '',
-                          rating: 0,
-                          example_images: [],
-                          example_explanations: '',
-                        });
+                        setShowAddUseCaseForm(false);
+                        setEditingUseCase(null);
                       }} 
                       className="flex-1 px-6 py-3 border border-custom-white/20 text-custom-white hover:bg-white/5 transition font-light uppercase tracking-wide disabled:opacity-50 disabled:cursor-not-allowed"
                       disabled={uploading}
@@ -744,13 +880,22 @@ export default function ToolsDatabase({ onNavigate, onLogout }) {
         {deleteConfirm && (
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
             <div className="bg-black border border-custom-white/20 w-full max-w-md p-6 md:p-8">
-              <h3 className="text-xl md:text-2xl font-kurdis tracking-wide mb-4">DELETE TOOL?</h3>
+              <h3 className="text-xl md:text-2xl font-kurdis tracking-wide mb-4">
+                {deleteConfirm.type === 'tool' ? 'DELETE TOOL?' : 'DELETE USE CASE?'}
+              </h3>
               <p className="text-custom-white/60 mb-6 font-light">
-                Are you sure you want to delete this tool? This action cannot be undone.
+                Are you sure you want to delete this {deleteConfirm.type === 'tool' ? 'tool' : 'use case'}? This action cannot be undone.
               </p>
               <div className="flex gap-3">
                 <button 
-                  onClick={() => handleDelete(deleteConfirm)} 
+                  onClick={() => {
+                    if (deleteConfirm.type === 'tool') {
+                      handleDeleteTool(deleteConfirm.id);
+                    } else {
+                      handleDeleteUseCase(deleteConfirm.id, deleteConfirm.toolId);
+                      setDeleteConfirm(null);
+                    }
+                  }}
                   className="flex-1 px-6 py-3 bg-red-600 text-white hover:bg-red-700 transition font-medium uppercase tracking-wide"
                 >
                   Delete
