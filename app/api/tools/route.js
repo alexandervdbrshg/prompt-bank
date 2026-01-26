@@ -35,15 +35,12 @@ export async function POST(request) {
 
   try {
     const body = await request.json();
-    
-    const { name, model, tag, description, use_cases, rating, example_explanations, example_image_urls } = body;
+    const { name, model, tag, description, rating } = body;
 
     const sanitizedName = sanitizeInput(name, 100);
     const sanitizedModel = model ? sanitizeInput(model, 100) : null;
     const sanitizedTag = tag ? sanitizeInput(tag, 50) : 'Other';
     const sanitizedDescription = description ? sanitizeInput(description, 2000) : null;
-    const sanitizedUseCases = use_cases ? sanitizeInput(use_cases, 2000) : null;
-    const sanitizedExampleExplanations = example_explanations ? sanitizeInput(example_explanations, 2000) : null;
 
     if (!sanitizedName) {
       return NextResponse.json({ error: 'Tool name required' }, { status: 400 });
@@ -60,7 +57,6 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Tool already exists' }, { status: 409 });
     }
 
-    // Create tool with image URLs passed from frontend
     const { data, error } = await supabaseServer
       .from('tools')
       .insert([{ 
@@ -68,10 +64,7 @@ export async function POST(request) {
         model: sanitizedModel,
         tag: sanitizedTag,
         description: sanitizedDescription,
-        use_cases: sanitizedUseCases,
         rating: rating || 0,
-        example_explanations: sanitizedExampleExplanations,
-        example_image_urls: example_image_urls && example_image_urls.length > 0 ? example_image_urls : null
       }])
       .select();
 
@@ -102,15 +95,12 @@ export async function PUT(request) {
 
   try {
     const body = await request.json();
-    
-    const { name, model, tag, description, use_cases, rating, example_explanations, example_image_urls } = body;
+    const { name, model, tag, description, rating } = body;
 
     const sanitizedName = sanitizeInput(name, 100);
     const sanitizedModel = model ? sanitizeInput(model, 100) : null;
     const sanitizedTag = tag ? sanitizeInput(tag, 50) : 'Other';
     const sanitizedDescription = description ? sanitizeInput(description, 2000) : null;
-    const sanitizedUseCases = use_cases ? sanitizeInput(use_cases, 2000) : null;
-    const sanitizedExampleExplanations = example_explanations ? sanitizeInput(example_explanations, 2000) : null;
 
     if (!sanitizedName) {
       return NextResponse.json({ error: 'Tool name required' }, { status: 400 });
@@ -123,10 +113,7 @@ export async function PUT(request) {
         model: sanitizedModel,
         tag: sanitizedTag,
         description: sanitizedDescription,
-        use_cases: sanitizedUseCases,
         rating: rating || 0,
-        example_explanations: sanitizedExampleExplanations,
-        example_image_urls: example_image_urls && example_image_urls.length > 0 ? example_image_urls : null
       })
       .eq('id', id)
       .select();
