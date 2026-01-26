@@ -96,8 +96,11 @@ export default function ToolsDatabase({ onNavigate, onLogout }) {
     }
     
     for (const file of files) {
-      if (file.size > 10 * 1024 * 1024) {
-        alert(`File "${file.name}" is too large. Maximum size: 10MB`);
+      const maxSize = file.type.startsWith('video/') ? 50 * 1024 * 1024 : 10 * 1024 * 1024;
+      const maxSizeLabel = file.type.startsWith('video/') ? '50MB' : '10MB';
+      
+      if (file.size > maxSize) {
+        alert(`File "${file.name}" is too large. Maximum size: ${maxSizeLabel}`);
         return;
       }
     }
@@ -796,7 +799,7 @@ export default function ToolsDatabase({ onNavigate, onLogout }) {
                         </span>
                         <input 
                           type="file" 
-                          accept="image/*" 
+                          accept="image/*,video/*" 
                           multiple 
                           onChange={handleFileUpload} 
                           className="hidden" 
